@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 import sys
 import webvtt
+from deepmultilingualpunctuation import PunctuationModel
 
 def merge_captions_global(captions, min_overlap_words=3):
     """
     Merge consecutive captions by removing overlapping text.
-    
-    For each caption, if a prefix (of at least min_overlap_words words)
-    of its text appears anywhere in the already accumulated text,
-    that overlapping portion is stripped from the beginning.
-    
     Returns a list of segments as tuples: (start, end, merged_text).
     """
     if not captions:
@@ -27,8 +23,7 @@ def merge_captions_global(captions, min_overlap_words=3):
         
         curr_words = curr_text.split()
         overlap_found = 0
-        # Look for the longest prefix (with at least min_overlap_words)
-        # of curr_text that appears in current_text.
+        # Look for the longest prefix (with at least min_overlap_words) of curr_text that appears in current_text.
         for i in range(len(curr_words), min_overlap_words - 1, -1):
             prefix = " ".join(curr_words[:i])
             if prefix in current_text:
@@ -36,7 +31,6 @@ def merge_captions_global(captions, min_overlap_words=3):
                 break
         
         if overlap_found >= min_overlap_words:
-            # Remove the overlapping words.
             non_overlap = " ".join(curr_words[overlap_found:])
             if non_overlap:
                 current_text += " " + non_overlap
@@ -52,9 +46,8 @@ def merge_captions_global(captions, min_overlap_words=3):
 
 def refine_segments(segments, min_words=3):
     """
-    If a segment's text is very short (fewer than min_words), merge it
-    with the previous segment. This helps eliminate cases where one or two
-    words are isolated with their own timestamp.
+    Merge segments whose text is very short (fewer than min_words) with the previous segment.
+    This reduces cases where one or two words get their own timestamp.
     """
     refined = []
     for seg in segments:
@@ -66,30 +59,13 @@ def refine_segments(segments, min_words=3):
             refined.append(seg)
     return refined
 
-def insert_basic_punctuation(text, words_per_sentence=15):
-    """
-    A very basic heuristic to add punctuation:
-    - Split the text into chunks of words_per_sentence.
-    - Capitalize the first word of each chunk.
-    - Append a period at the end if not already punctuated.
-    
-    This produces a block of text broken into “sentences.”
-    """
-    words = text.split()
-    sentences = []
-    for i in range(0, len(words), words_per_sentence):
-        sentence = " ".join(words[i:i+words_per_sentence])
-        if sentence:
-            sentence = sentence[0].upper() + sentence[1:]
-            if sentence[-1] not in ".!?":
-                sentence += "."
-            sentences.append(sentence)
-    return " ".join(sentences)
-
 def convert_vtt_to_html(vtt_file, html_file):
     captions = list(webvtt.read(vtt_file))
     segments = merge_captions_global(captions, min_overlap_words=3)
     segments = refine_segments(segments, min_words=3)
+    
+    # Initialize the punctuation restoration model.
+    model = PunctuationModel()
     
     html = [
         "<!DOCTYPE html>",
@@ -109,9 +85,9 @@ def convert_vtt_to_html(vtt_file, html_file):
     ]
     
     for start, end, text in segments:
-        # Insert basic punctuation into the merged text.
-        text_with_punctuation = insert_basic_punctuation(text)
-        if text_with_punctuation.strip():
+        if text.strip():
+            # Use the punctuation model to restore punctuation and capitalization.
+            text_with_punctuation = model.restore_punctuation(text)
             html.append("  <div class='segment'>")
             html.append(f"    <div class='timestamp'>{start} — {end}</div>")
             html.append(f"    <p class='text'>{text_with_punctuation}</p>")

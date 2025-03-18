@@ -27,7 +27,7 @@ web-transcriptor is a simple command-line tool that converts WEBVTT files (capti
 Use pip to install the required Python package:
 
    ```bash
-   pip install webvtt-py
+   pip install webvtt-py deepmultilingualpunctuation
    ```
 
 ## Usage
