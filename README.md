@@ -8,6 +8,18 @@ web-transcriptor is a simple command-line tool that converts WEBVTT files (capti
 - **Easy to Use:** Run from the command line with minimal dependencies.
 - **Customizable Output:** Modify the HTML and CSS in the script to match your style.
 
+## Modes
+
+The script has two modes:
+
+### Minimal mode
+
+Processes the VTT file as-is—each caption is output individually without merging or punctuation restoration.
+
+### Full mode
+
+Applies the advanced merging of overlapping captions and restores punctuation (using deepmultilingualpunctuation).
+
 ## Requirements
 
 - Python 3.6 or higher

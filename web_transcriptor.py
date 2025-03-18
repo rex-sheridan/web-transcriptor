@@ -1,7 +1,53 @@
 #!/usr/bin/env python3
 import sys
+import argparse
 import webvtt
-from deepmultilingualpunctuation import PunctuationModel
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
+
+# Import deepmultilingualpunctuation only for full processing.
+try:
+    from deepmultilingualpunctuation import PunctuationModel
+except ImportError:
+    PunctuationModel = None
+
+def convert_vtt_to_html_minimal(vtt_file, html_file):
+    """
+    Minimal processing: Output each caption as-is, with its timestamp and text.
+    """
+    captions = list(webvtt.read(vtt_file))
+    
+    html = [
+        "<!DOCTYPE html>",
+        "<html>",
+        "<head>",
+        "  <meta charset='utf-8'>",
+        "  <title>Transcript</title>",
+        "  <style>",
+        "    body { font-family: sans-serif; padding: 20px; line-height: 1.5; }",
+        "    .caption { margin-bottom: 1em; }",
+        "    .timestamp { color: #555; font-size: 0.9em; }",
+        "    .text { margin: 0.2em 0 0 0; }",
+        "  </style>",
+        "</head>",
+        "<body>",
+        "  <h1>Transcript</h1>"
+    ]
+    
+    for caption in captions:
+        text = caption.text.strip()
+        if text:
+            html.append("  <div class='caption'>")
+            html.append(f"    <div class='timestamp'>{caption.start} — {caption.end}</div>")
+            html.append(f"    <p class='text'>{text}</p>")
+            html.append("  </div>")
+    
+    html.append("</body>")
+    html.append("</html>")
+    
+    with open(html_file, 'w', encoding='utf-8') as f:
+        f.write("\n".join(html))
+    print(f"HTML transcript saved to {html_file}")
 
 def merge_captions_global(captions, min_overlap_words=3):
     """
@@ -47,7 +93,6 @@ def merge_captions_global(captions, min_overlap_words=3):
 def refine_segments(segments, min_words=3):
     """
     Merge segments whose text is very short (fewer than min_words) with the previous segment.
-    This reduces cases where one or two words get their own timestamp.
     """
     refined = []
     for seg in segments:
@@ -59,7 +104,14 @@ def refine_segments(segments, min_words=3):
             refined.append(seg)
     return refined
 
-def convert_vtt_to_html(vtt_file, html_file):
+def convert_vtt_to_html_full(vtt_file, html_file):
+    """
+    Full processing: Merge overlapping captions, refine segments,
+    and restore punctuation using deepmultilingualpunctuation.
+    """
+    if PunctuationModel is None:
+        sys.exit("Error: deepmultilingualpunctuation is not installed. Please run 'pip install deepmultilingualpunctuation'.")
+    
     captions = list(webvtt.read(vtt_file))
     segments = merge_captions_global(captions, min_overlap_words=3)
     segments = refine_segments(segments, min_words=3)
@@ -86,7 +138,7 @@ def convert_vtt_to_html(vtt_file, html_file):
     
     for start, end, text in segments:
         if text.strip():
-            # Use the punctuation model to restore punctuation and capitalization.
+            # Restore punctuation and capitalization.
             text_with_punctuation = model.restore_punctuation(text)
             html.append("  <div class='segment'>")
             html.append(f"    <div class='timestamp'>{start} — {end}</div>")
@@ -101,12 +153,23 @@ def convert_vtt_to_html(vtt_file, html_file):
     print(f"HTML transcript saved to {html_file}")
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: {} input.vtt output.html".format(sys.argv[0]))
-        sys.exit(1)
-    vtt_file = sys.argv[1]
-    html_file = sys.argv[2]
-    convert_vtt_to_html(vtt_file, html_file)
+    parser = argparse.ArgumentParser(
+        description="Convert a WEBVTT transcript file into a nicely formatted HTML transcript."
+    )
+    parser.add_argument("input", help="Input WEBVTT file")
+    parser.add_argument("output", help="Output HTML file")
+    parser.add_argument(
+        "--mode",
+        choices=["minimal", "full"],
+        default="full",
+        help="Processing mode: 'minimal' (no merging/punctuation) or 'full' (advanced processing). Default is full."
+    )
+    args = parser.parse_args()
+    
+    if args.mode == "minimal":
+        convert_vtt_to_html_minimal(args.input, args.output)
+    else:
+        convert_vtt_to_html_full(args.input, args.output)
 
 if __name__ == "__main__":
     main()
